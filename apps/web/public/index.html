@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AdFreeChess — Lobby</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="page-header">
+  <h1 class="logo">♟ AdFreeChess</h1>
+  <div class="header-right">
+    <a id="profile-link" href="#">—</a>
+    <a href="/bots">Bots</a>
+    <button class="btn btn-outline btn-sm" onclick="API.logout()">Log out</button>
+  </div>
+</header>
+
+<main class="page-main">
+  <div class="card">
+    <h2>New game</h2>
+    <div class="row">
+      <button class="btn btn-primary"   onclick="createGame('white')">Play as White</button>
+      <button class="btn btn-secondary" onclick="createGame('black')">Play as Black</button>
+    </div>
+    <p id="create-err" class="error hidden"></p>
+  </div>
+
+  <div class="card">
+    <h2>Join by game ID</h2>
+    <form class="form-row" onsubmit="joinGame(event)">
+      <input class="input" id="join-id" placeholder="Paste game ID…">
+      <button class="btn btn-primary" type="submit">Join</button>
+    </form>
+  </div>
+
+  <div class="card hidden" id="games-card">
+    <h2>Your games</h2>
+    <ul class="game-list" id="games-list"></ul>
+  </div>
+</main>
+
+<script src="/js/api.js"></script>
+<script>
+if (!API.requireAuth()) throw 0;
+
+const user = API.getUser();
+const profileLink = document.getElementById('profile-link');
+profileLink.textContent = user.username + ' · ' + user.eloRating + ' ELO';
+profileLink.href = '/profile?u=' + encodeURIComponent(user.username);
+
+async function createGame(color) {
+  const err = document.getElementById('create-err');
+  err.classList.add('hidden');
+  try {
+    const g = await API.post('/games', { color });
+    location.href = '/game?id=' + g.id;
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+  }
+}
+
+function joinGame(e) {
+  e.preventDefault();
+  const id = document.getElementById('join-id').value.trim();
+  if (id) location.href = '/game?id=' + id;
+}
+
+function resultLabel(g) {
+  if (g.status === 'waiting') return ['Waiting', ''];
+  if (g.status === 'active')  return ['In progress', 'active'];
+  if (!g.result)              return ['Ended', ''];
+  if (g.result === 'draw')    return ['Draw', ''];
+  const winnerId = g.result === 'white' ? g.whitePlayer?.id : g.blackPlayer?.id;
+  return winnerId === user.id ? ['You won', ''] : ['You lost', ''];
+}
+
+API.get('/games').then(games => {
+  if (!games.length) return;
+  document.getElementById('games-card').classList.remove('hidden');
+  const list = document.getElementById('games-list');
+  games.forEach(g => {
+    const [label, cls] = resultLabel(g);
+    const li = document.createElement('li');
+    li.className = 'game-item';
+    const players = document.createElement('span');
+    players.className = 'players';
+    players.textContent = (g.whitePlayer?.username ?? '?') + ' vs ' + (g.blackPlayer?.username ?? '?');
+    const status = document.createElement('span');
+    status.className = 'gstatus' + (cls ? ' ' + cls : '');
+    status.textContent = label;
+    li.append(players, status);
+    li.addEventListener('click', () => location.href = '/game?id=' + g.id);
+    list.appendChild(li);
+  });
+});
+</script>
+</body>
+</html>

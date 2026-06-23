@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AdFreeChess — Log in</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="auth-body">
+<div class="auth-card">
+  <h1>♟ AdFreeChess</h1>
+  <h2>Log in</h2>
+  <form id="form">
+    <label>Email
+      <input class="input" type="email" id="email" autocomplete="email" required>
+    </label>
+    <label>Password
+      <input class="input" type="password" id="password" autocomplete="current-password" required>
+    </label>
+    <p id="err" class="error hidden"></p>
+    <button class="btn btn-primary" type="submit">Log in</button>
+  </form>
+  <p>No account? <a href="/register">Register</a></p>
+</div>
+<script src="/js/api.js"></script>
+<script>
+if (API.getToken()) location.href = '/';
+
+document.getElementById('form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = e.target.querySelector('button');
+  const err = document.getElementById('err');
+  btn.disabled = true; btn.textContent = 'Logging in…';
+  err.classList.add('hidden');
+  try {
+    const res = await API.post('/auth/login', {
+      email:    document.getElementById('email').value,
+      password: document.getElementById('password').value,
+    });
+    API.saveSession(res.token, res.user);
+    location.href = '/';
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Log in';
+  }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AdFreeChess — Bots</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="page-header">
+  <a class="back-link" href="/">← Lobby</a>
+  <span style="font-weight:700">Bot accounts</span>
+</header>
+
+<main class="page-main">
+  <div class="card">
+    <h2>Create a bot</h2>
+    <p class="hint">Bots use an API key instead of a password. Exchange it for a JWT via
+      <code>POST /api/bots/auth</code>, then use the JWT as a Bearer token for all game APIs.</p>
+    <form class="form-row" id="create-form">
+      <input class="input" id="bot-name" placeholder="Bot username…"
+             pattern="[a-zA-Z0-9_\-]+" minlength="2" maxlength="32" required>
+      <button class="btn btn-primary" type="submit">Create</button>
+    </form>
+    <p class="error hidden" id="create-err"></p>
+    <div class="api-key-box hidden" id="key-box">
+      <p style="margin:0;font-size:.875rem;color:var(--muted)">
+        API key for <strong id="key-name"></strong> — copy it now, it won't be shown again.
+      </p>
+      <div class="api-key-row">
+        <code class="api-key" id="key-val"></code>
+        <button class="btn btn-outline btn-sm" id="copy-key-btn">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card hidden" id="bots-card">
+    <h2>Your bots</h2>
+    <ul class="game-list" id="bots-list"></ul>
+  </div>
+
+  <div class="card">
+    <h2>How to use</h2>
+    <div class="docs">
+      <ol>
+        <li>Create a bot above and save the API key.</li>
+        <li>Get a JWT: <code>POST /api/bots/auth {"apiKey":"…"}</code> → <code>{"token":"…"}</code></li>
+        <li>Create a game: <code>POST /api/games {"color":"black"}</code></li>
+        <li>Join a waiting game: <code>POST /api/games/:id/join</code></li>
+        <li>Poll state: <code>GET /api/games/:id</code></li>
+        <li>Make a move: <code>POST /api/games/:id/moves {"from":"e2","to":"e4"}</code></li>
+        <li>Resign: <code>POST /api/games/:id/resign</code></li>
+      </ol>
+    </div>
+    <p class="hint">All requests need <code>Authorization: Bearer &lt;token&gt;</code>.</p>
+  </div>
+</main>
+
+<script src="/js/api.js"></script>
+<script>
+if (!API.requireAuth()) throw 0;
+
+let bots = [];
+
+API.get('/bots').then(list => { bots = list; renderBots(); });
+
+document.getElementById('create-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = e.target.querySelector('button');
+  const err = document.getElementById('create-err');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  err.classList.add('hidden');
+  document.getElementById('key-box').classList.add('hidden');
+
+  try {
+    const res = await API.post('/bots', { username: document.getElementById('bot-name').value.trim() });
+    bots.push({ id: res.id, username: res.username, eloRating: 1200 });
+    renderBots();
+    document.getElementById('bot-name').value = '';
+    document.getElementById('key-name').textContent = res.username;
+    document.getElementById('key-val').textContent  = res.apiKey;
+    document.getElementById('key-box').classList.remove('hidden');
+
+    const copyBtn = document.getElementById('copy-key-btn');
+    copyBtn.onclick = () => {
+      navigator.clipboard.writeText(res.apiKey).then(() => {
+        copyBtn.textContent = 'Copied!';
+        setTimeout(() => copyBtn.textContent = 'Copy', 2000);
+      });
+    };
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create';
+  }
+});
+
+function renderBots() {
+  const card = document.getElementById('bots-card');
+  const list = document.getElementById('bots-list');
+  if (!bots.length) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  list.innerHTML = '';
+  bots.forEach(b => {
+    const li = document.createElement('li');
+    li.className = 'bot-item';
+    li.innerHTML = `<div class="bot-info"><a href="/profile?u=${encodeURIComponent(b.username)}">${b.username}</a><span class="bot-elo">${b.eloRating} ELO</span></div>`;
+    const del = document.createElement('button');
+    del.className = 'btn btn-danger btn-sm'; del.textContent = 'Delete';
+    del.addEventListener('click', () => deleteBot(b.id, del));
+    li.appendChild(del);
+    list.appendChild(li);
+  });
+}
+
+async function deleteBot(id, btn) {
+  if (!confirm('Delete this bot? This cannot be undone.')) return;
+  btn.disabled = true; btn.textContent = 'Deleting…';
+  try {
+    await API.delete('/bots/' + id);
+    bots = bots.filter(b => b.id !== id);
+    renderBots();
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Delete';
+  }
+}
+</script>
+</body>
+</html>

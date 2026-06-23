@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AdFreeChess — Profile</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="page-header">
+  <a class="back-link" href="/">← Lobby</a>
+</header>
+
+<main class="page-main">
+  <div class="card" id="profile-card">
+    <div class="profile-top">
+      <h1 class="profile-username" id="pname"></h1>
+      <p class="profile-elo"    id="pelo"></p>
+      <p class="profile-joined" id="pjoined"></p>
+    </div>
+    <div id="stats-section"></div>
+    <div id="bio-section"></div>
+  </div>
+
+  <div class="card hidden" id="games-card">
+    <h2>Recent games</h2>
+    <ul class="game-list" id="games-list"></ul>
+  </div>
+</main>
+
+<script src="/js/api.js"></script>
+<script>
+if (!API.requireAuth()) throw 0;
+
+const me       = API.getUser();
+const username = new URLSearchParams(location.search).get('u');
+if (!username) { location.href = '/'; throw 0; }
+
+API.get('/users/' + encodeURIComponent(username)).then(p => {
+  document.title = p.username + ' — AdFreeChess';
+
+  // Heading
+  const nameEl = document.getElementById('pname');
+  nameEl.textContent = p.username;
+  if (p.isBot) {
+    const b = document.createElement('span');
+    b.className = 'bot-badge'; b.textContent = 'BOT';
+    nameEl.appendChild(b);
+  }
+  document.getElementById('pelo').textContent    = p.eloRating + ' ELO';
+  document.getElementById('pjoined').textContent = 'Member since ' + new Date(p.createdAt).toLocaleDateString();
+
+  // W/L/D stats
+  const total = p.wins + p.losses + p.draws;
+  if (total > 0) {
+    const pct = n => (n / total * 100).toFixed(1) + '%';
+    document.getElementById('stats-section').innerHTML = `
+      <div class="stats-row">
+        <div class="stat"><span class="stat-value sv-win">${p.wins}</span><span class="stat-label">Wins</span></div>
+        <div class="stat-div"></div>
+        <div class="stat"><span class="stat-value sv-loss">${p.losses}</span><span class="stat-label">Losses</span></div>
+        <div class="stat-div"></div>
+        <div class="stat"><span class="stat-value sv-draw">${p.draws}</span><span class="stat-label">Draws</span></div>
+      </div>
+      <div class="stat-bar">
+        <div class="sb-win"  style="width:${pct(p.wins)}"></div>
+        <div class="sb-draw" style="width:${pct(p.draws)}"></div>
+        <div class="sb-loss" style="width:${pct(p.losses)}"></div>
+      </div>`;
+  }
+
+  // Bio
+  buildBio(document.getElementById('bio-section'), p, p.id === me.id);
+
+  // Recent games
+  if (p.recentGames.length) {
+    document.getElementById('games-card').classList.remove('hidden');
+    const list = document.getElementById('games-list');
+    p.recentGames.forEach(g => {
+      const opp = g.whitePlayer?.id === p.id ? g.blackPlayer : g.whitePlayer;
+      let tag = 'Ongoing', cls = '';
+      if (g.result === 'draw')  { tag = 'Draw'; cls = 'rt-draw'; }
+      else if (g.result) {
+        const wid = g.result === 'white' ? g.whitePlayer?.id : g.blackPlayer?.id;
+        tag = wid === p.id ? 'Win' : 'Loss';
+        cls = wid === p.id ? 'rt-win' : 'rt-loss';
+      }
+      const li = document.createElement('li');
+      li.className = 'game-item';
+      const oppName = esc(opp?.username ?? '?') + (opp?.isBot ? ' <span class="bot-badge">BOT</span>' : '');
+      li.innerHTML = `<span class="result-tag ${cls}">${tag}</span>`
+                   + `<span class="opp-name">vs ${oppName}</span>`
+                   + `<span class="opp-elo">${opp?.eloRating ?? ''}</span>`;
+      li.addEventListener('click', () => location.href = '/game?id=' + g.id);
+      list.appendChild(li);
+    });
+  }
+
+}).catch(e => {
+  document.getElementById('profile-card').innerHTML = '<p class="error">' + esc(e.message) + '</p>';
+});
+
+function buildBio(container, p, isOwn) {
+  let bio = p.bio || '';
+  let editing = false;
+
+  function render() {
+    container.innerHTML = '';
+    if (editing) {
+      const ta  = document.createElement('textarea');
+      const cnt = document.createElement('div');
+      const row = document.createElement('div');
+      const savBtn = document.createElement('button');
+      const canBtn = document.createElement('button');
+
+      ta.className = 'input'; ta.rows = 3; ta.maxLength = 200;
+      ta.placeholder = 'Tell people about yourself…'; ta.value = bio;
+      cnt.className = 'bio-counter'; cnt.textContent = bio.length + '/200';
+      row.className = 'bio-actions';
+      savBtn.className = 'btn btn-primary btn-sm'; savBtn.textContent = 'Save';
+      canBtn.className = 'btn btn-outline btn-sm'; canBtn.textContent = 'Cancel';
+
+      ta.addEventListener('input', () => {
+        bio = ta.value.slice(0, 200); ta.value = bio;
+        cnt.textContent = bio.length + '/200';
+      });
+      savBtn.addEventListener('click', async () => {
+        savBtn.disabled = true; savBtn.textContent = 'Saving…';
+        await API.put('/users/' + p.username, { bio });
+        p.bio = bio; editing = false; render();
+      });
+      canBtn.addEventListener('click', () => { bio = p.bio; editing = false; render(); });
+
+      row.append(savBtn, canBtn);
+      container.append(ta, cnt, row);
+    } else {
+      if (bio) {
+        const pre = document.createElement('p');
+        pre.className = 'bio'; pre.textContent = bio;
+        container.appendChild(pre);
+      } else if (isOwn) {
+        const hint = document.createElement('p');
+        hint.className = 'bio-empty'; hint.textContent = 'Add a bio to introduce yourself.';
+        container.appendChild(hint);
+      }
+      if (isOwn) {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-outline btn-sm';
+        btn.textContent = bio ? 'Edit bio' : '+ Add bio';
+        btn.addEventListener('click', () => { editing = true; render(); });
+        container.appendChild(btn);
+      }
+    }
+  }
+  render();
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

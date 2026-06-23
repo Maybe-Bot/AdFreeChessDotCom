@@ -1,0 +1,225 @@
+.page {
+  min-height: 100vh;
+  background: #1a1a2e;
+  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1.5rem;
+  background: #16213e;
+  border-bottom: 1px solid #0f3460;
+}
+
+.backLink {
+  color: #4ade80;
+  text-decoration: none;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.gameId {
+  color: #475569;
+  font-size: 0.8125rem;
+  font-family: monospace;
+}
+
+.themePicker {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.themeSwatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: border-color 0.15s, transform 0.1s;
+}
+
+.themeSwatch:hover {
+  transform: scale(1.15);
+}
+
+.themeSwatchActive {
+  border-color: #4ade80;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem 1rem;
+  flex: 1;
+}
+
+.boardWrap {
+  width: min(560px, calc(100vw - 2rem));
+}
+
+.playerBar {
+  width: min(560px, calc(100vw - 2rem));
+}
+
+.playerBadge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  transition: border-color 0.15s;
+}
+
+.playerBadge.activeTurn {
+  border-color: #4ade80;
+}
+
+.colorDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dotWhite {
+  background: #f8fafc;
+  border: 1px solid #94a3b8;
+}
+
+.dotBlack {
+  background: #1e293b;
+  border: 1px solid #475569;
+}
+
+.playerName {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.botBadge {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.playerElo {
+  color: #64748b;
+  font-size: 0.8125rem;
+}
+
+.status {
+  font-size: 0.9375rem;
+  color: #94a3b8;
+  margin: 0;
+  text-align: center;
+}
+
+.status.completed {
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: #4ade80;
+}
+
+.error {
+  color: #f87171;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.drawOffer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #16213e;
+  border: 1px solid #0f3460;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  flex-wrap: wrap;
+}
+
+.drawOffer span {
+  color: #e2e8f0;
+  font-size: 0.9375rem;
+}
+
+.drawPending {
+  color: #94a3b8;
+  font-size: 0.875rem;
+  margin: 0;
+  font-style: italic;
+}
+
+.btnPrimary {
+  background: #4ade80;
+  color: #0f172a;
+  font-weight: 700;
+  border: none;
+  border-radius: 6px;
+  padding: 0.625rem 1.25rem;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  transition: background 0.15s;
+}
+
+.btnPrimary:hover {
+  background: #22c55e;
+}
+
+.btnOutline {
+  background: none;
+  color: #94a3b8;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 0.625rem 1.25rem;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.btnOutline:hover {
+  border-color: #4ade80;
+  color: #4ade80;
+}
+
+.btnDanger {
+  background: none;
+  color: #f87171;
+  border: 1px solid #f87171;
+  border-radius: 6px;
+  padding: 0.625rem 1.25rem;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  transition: background 0.15s;
+}
+
+.btnDanger:hover {
+  background: #7f1d1d;
+}

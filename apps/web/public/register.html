@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AdFreeChess — Register</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="auth-body">
+<div class="auth-card">
+  <h1>♟ AdFreeChess</h1>
+  <h2>Create account</h2>
+  <form id="form">
+    <label>Username
+      <input class="input" type="text" id="username" minlength="2" maxlength="32" autocomplete="username" required>
+    </label>
+    <label>Email
+      <input class="input" type="email" id="email" autocomplete="email" required>
+    </label>
+    <label>Password
+      <input class="input" type="password" id="password" minlength="8" autocomplete="new-password" required>
+    </label>
+    <p id="err" class="error hidden"></p>
+    <button class="btn btn-primary" type="submit">Create account</button>
+  </form>
+  <p>Have an account? <a href="/login">Log in</a></p>
+</div>
+<script src="/js/api.js"></script>
+<script>
+if (API.getToken()) location.href = '/';
+
+document.getElementById('form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = e.target.querySelector('button');
+  const err = document.getElementById('err');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  err.classList.add('hidden');
+  try {
+    const res = await API.post('/auth/register', {
+      username: document.getElementById('username').value,
+      email:    document.getElementById('email').value,
+      password: document.getElementById('password').value,
+    });
+    API.saveSession(res.token, res.user);
+    location.href = '/';
+  } catch (e) {
+    err.textContent = e.message;
+    err.classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Create account';
+  }
+});
+</script>
+</body>
+</html>

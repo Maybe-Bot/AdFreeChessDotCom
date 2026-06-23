@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AdFreeChess — Game</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="page-header">
+  <a class="back-link" href="/">← Lobby</a>
+  <span class="game-id-tag" id="gid"></span>
+  <div class="theme-picker" id="theme-picker"></div>
+</header>
+
+<div class="game-layout">
+  <div class="player-badge" id="badge-top">
+    <span class="color-dot" id="dot-top"></span>
+    <span class="player-name" id="name-top">Waiting…</span>
+    <span class="player-elo"  id="elo-top"></span>
+  </div>
+
+  <div id="board"></div>
+
+  <div class="player-badge" id="badge-bot">
+    <span class="color-dot" id="dot-bot"></span>
+    <span class="player-name" id="name-bot">You</span>
+    <span class="player-elo"  id="elo-bot"></span>
+  </div>
+
+  <p class="game-status" id="status">Connecting…</p>
+  <p class="error hidden" id="err"></p>
+
+  <div id="act-waiting" class="game-actions hidden">
+    <button class="btn btn-outline" id="copy-btn" onclick="copyLink()">Copy invite link</button>
+  </div>
+
+  <div id="act-active" class="game-actions hidden">
+    <button class="btn btn-outline" onclick="offerDraw()">Offer draw</button>
+    <button class="btn btn-danger"  onclick="resign()">Resign</button>
+  </div>
+
+  <div id="act-draw-offer" class="draw-offer hidden">
+    <span>Opponent offers a draw</span>
+    <button class="btn btn-primary btn-sm" onclick="acceptDraw()">Accept</button>
+    <button class="btn btn-outline btn-sm" onclick="declineDraw()">Decline</button>
+  </div>
+
+  <p class="draw-pending hidden" id="draw-pending">Draw offer sent — waiting…</p>
+
+  <div id="act-done" class="game-actions hidden">
+    <button class="btn btn-primary" onclick="location.href='/'">Back to lobby</button>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script src="/js/board.js"></script>
+<script>
+if (!API.requireAuth()) throw 0;
+
+initTheme();
+buildThemePicker(document.getElementById('theme-picker'));
+
+const user   = API.getUser();
+const gameId = new URLSearchParams(location.search).get('id');
+if (!gameId) { location.href = '/'; throw 0; }
+document.getElementById('gid').textContent = 'Game ' + gameId.slice(0, 8);
+
+let state    = null;   // latest GameState from server
+let myColor  = null;   // 'white' | 'black' | null (spectator)
+let selected = null;   // currently selected square name, e.g. 'e2'
+
+// ── WebSocket ────────────────────────────────────────────────
+const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+const ws = new WebSocket(proto + '//' + location.host + '/ws');
+
+ws.onopen = () => {
+  ws.send(JSON.stringify({ type: 'game:auth', token: API.getToken() }));
+  ws.send(JSON.stringify({ type: 'game:join', gameId }));
+};
+
+ws.onmessage = e => {
+  const msg = JSON.parse(e.data);
+  if (msg.type === 'game:state' || msg.type === 'game:move_made' || msg.type === 'game:ended') {
+    applyState(msg.state);
+  } else if (msg.type === 'game:draw_offered') {
+    if (msg.by !== myColor) showDrawOffer();
+    else show('draw-pending');
+  } else if (msg.type === 'game:draw_declined') {
+    hide('draw-pending');
+    setActionsActive();
+  } else if (msg.type === 'game:error') {
+    // Re-render from last known state to undo optimistic selection
+    selected = null;
+    if (state) renderBoard(document.getElementById('board'), state.fen, myColor || 'white', null, onSquareClick);
+    flashErr(msg.message);
+  }
+};
+
+ws.onerror = () => flashErr('Connection error');
+
+// ── State ────────────────────────────────────────────────────
+function applyState(s) {
+  state = s;
+  selected = null;
+
+  const wp = s.whitePlayer, bp = s.blackPlayer;
+  myColor = wp?.id === user.id ? 'white' : bp?.id === user.id ? 'black' : null;
+
+  // Player badges — opponent on top, me on bottom
+  const topPlayer = myColor === 'black' ? wp : bp;
+  const topColor  = myColor === 'black' ? 'white' : 'black';
+  const botPlayer = myColor === 'black' ? bp : wp;
+  const botColor  = myColor || 'white';
+
+  setDot('dot-top', topColor);
+  setDot('dot-bot', botColor);
+  setPlayerName('name-top', topPlayer);
+  setPlayerName('name-bot', botPlayer);
+  document.getElementById('elo-top').textContent = topPlayer?.eloRating ?? '';
+  document.getElementById('elo-bot').textContent = botPlayer?.eloRating ?? '';
+
+  const turn = fenTurn(s.fen);
+  document.getElementById('badge-top').classList.toggle('active-turn',
+    s.status === 'active' && (topColor === 'white') === (turn === 'w'));
+  document.getElementById('badge-bot').classList.toggle('active-turn',
+    s.status === 'active' && (botColor === 'white') === (turn === 'w'));
+
+  renderBoard(document.getElementById('board'), s.fen, myColor || 'white', null, onSquareClick);
+
+  // Status text
+  const statusEl = document.getElementById('status');
+  if (s.status === 'waiting') {
+    statusEl.textContent = 'Waiting for opponent — share the link below';
+    statusEl.className = 'game-status';
+  } else if (s.status === 'completed') {
+    const reason = (s.endReason || '').replace('_', ' ');
+    statusEl.textContent = s.result === 'draw'
+      ? 'Draw by ' + reason
+      : (s.result === 'white' ? wp?.username : bp?.username) + ' wins by ' + reason;
+    statusEl.className = 'game-status done';
+  } else {
+    const isMyTurn = myColor && (turn === 'w') === (myColor === 'white');
+    statusEl.textContent = isMyTurn ? 'Your turn'
+      : (wp?.username ?? '?') + "'s turn (" + (turn === 'w' ? 'White' : 'Black') + ')';
+    statusEl.className = 'game-status';
+  }
+
+  // Action panels
+  hideAll();
+  if (s.status === 'waiting')                   show('act-waiting');
+  else if (s.status === 'active' && myColor)    setActionsActive();
+  else if (s.status === 'completed')            show('act-done');
+}
+
+// ── Move input ───────────────────────────────────────────────
+function onSquareClick(sq, piece, squares) {
+  if (!state || state.status !== 'active' || !myColor) return;
+  const turn = fenTurn(state.fen);
+  const isMyTurn = (turn === 'w') === (myColor === 'white');
+
+  if (selected) {
+    if (selected === sq) {
+      // Deselect
+      selected = null;
+    } else {
+      // Attempt move
+      const fromPiece = squares[selected];
+      const isPromo = fromPiece?.toLowerCase() === 'p'
+        && ((myColor === 'white' && sq[1] === '8') || (myColor === 'black' && sq[1] === '1'));
+      ws.send(JSON.stringify({ type: 'game:move', from: selected, to: sq, ...(isPromo ? { promotion: 'q' } : {}) }));
+      selected = null;
+    }
+    renderBoard(document.getElementById('board'), state.fen, myColor, selected, onSquareClick);
+    return;
+  }
+
+  // Select a piece that belongs to us
+  if (!isMyTurn || !piece) return;
+  const isWhitePiece = piece === piece.toUpperCase();
+  if ((myColor === 'white') !== isWhitePiece) return;
+  selected = sq;
+  renderBoard(document.getElementById('board'), state.fen, myColor, selected, onSquareClick);
+}
+
+// ── Actions ──────────────────────────────────────────────────
+function copyLink() {
+  navigator.clipboard.writeText(location.href).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy invite link', 2000);
+  });
+}
+
+function offerDraw() {
+  hide('act-active');
+  show('draw-pending');
+  ws.send(JSON.stringify({ type: 'game:offer_draw' }));
+}
+
+function resign() {
+  if (confirm('Resign this game?')) ws.send(JSON.stringify({ type: 'game:resign' }));
+}
+
+function showDrawOffer() { hide('act-active'); show('act-draw-offer'); }
+function acceptDraw()    { ws.send(JSON.stringify({ type: 'game:accept_draw' })); }
+function declineDraw() {
+  ws.send(JSON.stringify({ type: 'game:decline_draw' }));
+  hide('act-draw-offer');
+  setActionsActive();
+}
+
+function setActionsActive() {
+  hide('act-draw-offer'); hide('draw-pending');
+  show('act-active');
+}
+
+// ── Helpers ──────────────────────────────────────────────────
+function setPlayerName(id, player) {
+  const el = document.getElementById(id);
+  el.textContent = '';
+  if (!player) { el.textContent = 'Waiting…'; return; }
+  el.textContent = player.username;
+  if (player.isBot) {
+    const b = document.createElement('span');
+    b.className = 'bot-badge'; b.textContent = 'BOT';
+    el.appendChild(b);
+  }
+}
+
+function setDot(id, color) {
+  document.getElementById(id).className = 'color-dot ' + color;
+}
+
+function hideAll() {
+  ['act-waiting','act-active','act-draw-offer','draw-pending','act-done']
+    .forEach(id => hide(id));
+}
+
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+
+function flashErr(msg) {
+  const el = document.getElementById('err');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 3000);
+}
+</script>
+</body>
+</html>
