@@ -23,9 +23,23 @@
 }
 
 .gameId {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   color: #475569;
   font-size: 0.8125rem;
   font-family: monospace;
+}
+
+.tcTag {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #4ade80;
+  background: #14532d;
+  border: 1px solid #166534;
+  border-radius: 4px;
+  padding: 0.125rem 0.375rem;
+  font-family: inherit;
 }
 
 .themePicker {
@@ -125,6 +139,37 @@
 .playerElo {
   color: #64748b;
   font-size: 0.8125rem;
+}
+
+.clock {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #475569;
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 0.25rem 0.625rem;
+  min-width: 4.5rem;
+  text-align: center;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.clockActive {
+  color: #e2e8f0;
+  border-color: #334155;
+}
+
+.clockLow {
+  color: #f87171;
+  border-color: #f87171;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
 .status {

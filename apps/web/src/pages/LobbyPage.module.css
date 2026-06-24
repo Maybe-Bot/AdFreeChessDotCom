@@ -26,11 +26,6 @@
   gap: 1rem;
 }
 
-.elo {
-  color: #94a3b8;
-  font-size: 0.875rem;
-}
-
 .profileLink {
   color: #94a3b8;
   font-size: 0.875rem;
@@ -98,6 +93,57 @@
   letter-spacing: 0.05em;
 }
 
+/* ── Time control preset grid ── */
+
+.presetGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.presetGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.presetGroupLabel {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  width: 88px;
+  flex-shrink: 0;
+}
+
+.presetBtn {
+  background: #0f3460;
+  border: 1px solid #1e4a7a;
+  color: #94a3b8;
+  border-radius: 5px;
+  padding: 0.3125rem 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+
+.presetBtn:hover {
+  border-color: #4ade80;
+  color: #4ade80;
+}
+
+.presetBtnActive {
+  background: #14532d;
+  border-color: #4ade80;
+  color: #4ade80;
+}
+
+/* ── New game buttons ── */
+
 .newGameButtons {
   display: flex;
   gap: 0.75rem;
@@ -145,6 +191,120 @@
   cursor: not-allowed;
 }
 
+/* ── Game lists ── */
+
+.gameList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.gameItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #0f3460;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: background 0.15s;
+  gap: 0.5rem;
+}
+
+.gameItem:hover {
+  background: #1e4a7a;
+}
+
+.gamePlayers {
+  font-size: 0.9375rem;
+  color: #e2e8f0;
+  font-weight: 500;
+}
+
+.gameItemRight {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.gameStatus {
+  font-size: 0.8125rem;
+  color: #94a3b8;
+}
+
+.gameStatus.active {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+/* ── Open challenges ── */
+
+.challengeInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.challengeColor {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.challengeMeta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.tcBadge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #4ade80;
+  background: #14532d;
+  border: 1px solid #166534;
+  border-radius: 4px;
+  padding: 0.125rem 0.375rem;
+  white-space: nowrap;
+}
+
+.eloTag {
+  font-size: 0.75rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.joinBtn {
+  background: #4ade80;
+  color: #0f172a;
+  font-weight: 700;
+  border: none;
+  border-radius: 5px;
+  padding: 0.3125rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.joinBtn:hover {
+  background: #22c55e;
+}
+
+.empty {
+  color: #475569;
+  font-size: 0.875rem;
+  margin: 0;
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+/* ── Join form ── */
+
 .joinForm {
   display: flex;
   gap: 0.75rem;
@@ -169,43 +329,4 @@
   color: #f87171;
   font-size: 0.875rem;
   margin: 0.75rem 0 0;
-}
-
-.gameList {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.gameItem {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #0f3460;
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.gameItem:hover {
-  background: #1e4a7a;
-}
-
-.gamePlayers {
-  font-size: 0.9375rem;
-  color: #e2e8f0;
-}
-
-.gameStatus {
-  font-size: 0.8125rem;
-  color: #94a3b8;
-}
-
-.gameStatus.active {
-  color: #4ade80;
-  font-weight: 600;
 }

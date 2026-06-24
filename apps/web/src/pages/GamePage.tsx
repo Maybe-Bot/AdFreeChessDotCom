@@ -5,7 +5,32 @@ import { Chess } from 'chess.js';
 import type { ServerMessage, GameState, Color } from '@chess/shared';
 import { useAuth } from '../context/AuthContext';
 import { useBoardTheme, BOARD_THEMES } from '../hooks/useBoardTheme';
+import { tcLabel } from './LobbyPage';
 import styles from './GamePage.module.css';
+
+// ─── Clock helpers ────────────────────────────────────────────────────────────
+
+function formatClock(ms: number | null): string {
+  if (ms === null) return '—';
+  const totalSec = Math.max(0, Math.ceil(ms / 1000));
+  const mins = Math.floor(totalSec / 60);
+  const secs = totalSec % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
+function formatCorrespondence(lastMoveAt: string | null, daysPerMove: number): string {
+  if (!lastMoveAt) return `${daysPerMove}d`;
+  const elapsed = Date.now() - new Date(lastMoveAt + 'Z').getTime();
+  const remaining = daysPerMove * 24 * 60 * 60 * 1000 - elapsed;
+  if (remaining <= 0) return '0d';
+  const days = Math.floor(remaining / (24 * 60 * 60 * 1000));
+  const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  if (days > 0) return `${days}d ${hours}h`;
+  const mins = Math.floor(remaining / 60_000);
+  return `${hours}h ${mins % 60}m`;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function GamePage() {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +45,12 @@ export default function GamePage() {
   const [drawOfferFrom, setDrawOfferFrom] = useState<Color | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+
+  // Live clock state (ms remaining displayed for each side)
+  const [clockWhite, setClockWhite] = useState<number | null>(null);
+  const [clockBlack, setClockBlack] = useState<number | null>(null);
+  const gameRef = useRef<GameState | null>(null);
+  const chessRef = useRef(chess);
 
   const myColor: Color | null = game
     ? game.whitePlayer?.id === user?.id ? 'white'
@@ -36,6 +67,10 @@ export default function GamePage() {
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   }
 
+  // Keep refs in sync
+  useEffect(() => { gameRef.current = game; }, [game]);
+
+  // WebSocket
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token || !id) return;
@@ -87,7 +122,28 @@ export default function GamePage() {
       setDrawOffered(false);
       setDrawOfferFrom(null);
     }
+    // Sync clocks immediately from server values
+    setClockWhite(state.whiteTimeMs);
+    setClockBlack(state.blackTimeMs);
   }
+
+  // Live countdown ticker for clock games
+  useEffect(() => {
+    if (!game || game.timeControl.type !== 'clock' || game.status !== 'active') return;
+
+    const tick = () => {
+      const g = gameRef.current;
+      if (!g || !g.lastMoveAt || g.timeControl.type !== 'clock') return;
+      const elapsed = Date.now() - new Date(g.lastMoveAt + 'Z').getTime();
+      const turn = chessRef.current.turn();
+      setClockWhite(turn === 'w' ? Math.max(0, (g.whiteTimeMs ?? 0) - elapsed) : (g.whiteTimeMs ?? null));
+      setClockBlack(turn === 'b' ? Math.max(0, (g.blackTimeMs ?? 0) - elapsed) : (g.blackTimeMs ?? null));
+    };
+
+    tick();
+    const interval = setInterval(tick, 100);
+    return () => clearInterval(interval);
+  }, [game?.id, game?.status, game?.lastMoveAt]);
 
   function onDrop(sourceSquare: string, targetSquare: string, piece: string) {
     if (!isMyTurn) return false;
@@ -118,19 +174,32 @@ export default function GamePage() {
     if (!game) return 'Loading…';
     if (game.status === 'waiting') return 'Waiting for opponent — share the link below';
     if (game.status === 'completed') {
-      if (game.result === 'draw') return `Draw by ${game.endReason?.replace('_', ' ')}`;
+      if (game.result === 'draw') return `Draw by ${game.endReason?.replace(/_/g, ' ')}`;
       const winner = game.result === 'white' ? game.whitePlayer?.username : game.blackPlayer?.username;
-      return `${winner} wins by ${game.endReason?.replace('_', ' ')}`;
+      return `${winner} wins by ${game.endReason?.replace(/_/g, ' ')}`;
     }
     if (!isMyTurn) return `${game.whitePlayer?.username ?? '?'}'s turn (${chess.turn() === 'w' ? 'White' : 'Black'})`;
     return 'Your turn';
   };
 
+  const showClock = game?.timeControl.type === 'clock';
+  const showCorrespondence = game?.timeControl.type === 'correspondence';
+
+  const opponentColor: Color = myColor === 'black' ? 'white' : 'black';
+  const opponentClockMs = opponentColor === 'white' ? clockWhite : clockBlack;
+  const myClockMs = myColor === 'black' ? clockBlack : clockWhite;
+
+  const opponentPlayer = myColor === 'black' ? game?.whitePlayer : game?.blackPlayer;
+  const myPlayer = myColor === 'black' ? game?.blackPlayer : game?.whitePlayer;
+
   return (
     <div className={styles.page}>
       <header className={styles.header}>
         <Link to="/" className={styles.backLink}>← Lobby</Link>
-        <span className={styles.gameId}>Game {id?.slice(0, 8)}</span>
+        <span className={styles.gameId}>
+          {game && <span className={styles.tcTag}>{tcLabel(game.timeControl)}</span>}
+          Game {id?.slice(0, 8)}
+        </span>
         <div className={styles.themePicker}>
           {Object.entries(BOARD_THEMES).map(([key, t]) => (
             <button
@@ -145,11 +214,17 @@ export default function GamePage() {
       </header>
 
       <main className={styles.main}>
+        {/* Opponent */}
         <div className={styles.playerBar}>
           <PlayerBadge
-            player={myColor === 'black' ? game?.whitePlayer : game?.blackPlayer}
-            color={myColor === 'black' ? 'white' : 'black'}
-            active={chess.turn() === (myColor === 'black' ? 'w' : 'b') && game?.status === 'active'}
+            player={opponentPlayer}
+            color={opponentColor}
+            active={chess.turn() === (opponentColor === 'white' ? 'w' : 'b') && game?.status === 'active'}
+            clockMs={showClock ? opponentClockMs : null}
+            correspondenceLabel={showCorrespondence && game?.status === 'active'
+              ? formatCorrespondence(game.lastMoveAt, game.timeControl.daysPerMove ?? 3)
+              : null}
+            isOpponentTurn={chess.turn() === (opponentColor === 'white' ? 'w' : 'b')}
           />
         </div>
 
@@ -165,11 +240,17 @@ export default function GamePage() {
           />
         </div>
 
+        {/* Me */}
         <div className={styles.playerBar}>
           <PlayerBadge
-            player={myColor === 'black' ? game?.blackPlayer : game?.whitePlayer}
+            player={myPlayer}
             color={myColor ?? 'white'}
             active={chess.turn() === (myColor === 'black' ? 'b' : 'w') && game?.status === 'active'}
+            clockMs={showClock ? myClockMs : null}
+            correspondenceLabel={showCorrespondence && game?.status === 'active'
+              ? formatCorrespondence(game.lastMoveAt, game.timeControl.daysPerMove ?? 3)
+              : null}
+            isOpponentTurn={chess.turn() !== (myColor === 'black' ? 'b' : 'w')}
           />
         </div>
 
@@ -222,15 +303,25 @@ export default function GamePage() {
   );
 }
 
+// ─── PlayerBadge ─────────────────────────────────────────────────────────────
+
 function PlayerBadge({
   player,
   color,
   active,
+  clockMs,
+  correspondenceLabel,
+  isOpponentTurn,
 }: {
   player: { username: string; eloRating: number; isBot: boolean } | null | undefined;
   color: Color;
   active: boolean;
+  clockMs: number | null;
+  correspondenceLabel: string | null;
+  isOpponentTurn: boolean;
 }) {
+  const clockLow = clockMs !== null && clockMs < 10_000;
+
   return (
     <div className={`${styles.playerBadge} ${active ? styles.activeTurn : ''}`}>
       <span className={`${styles.colorDot} ${color === 'white' ? styles.dotWhite : styles.dotBlack}`} />
@@ -239,6 +330,16 @@ function PlayerBadge({
         {player?.isBot && <span className={styles.botBadge}>BOT</span>}
       </span>
       {player && <span className={styles.playerElo}>{player.eloRating}</span>}
+      {clockMs !== null && (
+        <span className={`${styles.clock} ${active ? styles.clockActive : ''} ${clockLow ? styles.clockLow : ''}`}>
+          {formatClock(clockMs)}
+        </span>
+      )}
+      {correspondenceLabel !== null && (
+        <span className={`${styles.clock} ${isOpponentTurn ? '' : styles.clockActive}`}>
+          {correspondenceLabel}
+        </span>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { Chess } from 'chess.js';
 import jwt from 'jsonwebtoken';
 import { config } from '../../config.js';
 import { getDb } from '../../db/index.js';
-import { getFullGameRow, rowToState } from './routes.js';
+import { getFullGameRow, rowToState, applyClock, checkAndApplyTimeout } from './routes.js';
 import { updateElo } from './elo.js';
 import { joinRoom, leaveRoom, broadcast, send } from '../../ws/rooms.js';
 import type { ClientMessage } from '@chess/shared';
@@ -60,10 +60,16 @@ export function registerGameSocket(wss: WebSocketServer) {
       // Fill empty player slot
       if (row.status === 'waiting' && row.white_player_id !== userId && row.black_player_id !== userId) {
         if (!row.white_player_id) {
-          db.prepare("UPDATE games SET white_player_id = ?, status = 'active', updated_at = datetime('now') WHERE id = ?").run(userId, id);
+          db.prepare(`UPDATE games SET white_player_id = ?, status = 'active', last_move_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`).run(userId, id);
         } else if (!row.black_player_id) {
-          db.prepare("UPDATE games SET black_player_id = ?, status = 'active', updated_at = datetime('now') WHERE id = ?").run(userId, id);
+          db.prepare(`UPDATE games SET black_player_id = ?, status = 'active', last_move_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`).run(userId, id);
         }
+        row = getFullGameRow(db, id);
+      }
+
+      // Check for timeout when joining an active game
+      if (row.status === 'active') {
+        checkAndApplyTimeout(db, row);
         row = getFullGameRow(db, id);
       }
 
@@ -95,6 +101,17 @@ export function registerGameSocket(wss: WebSocketServer) {
         return;
       }
 
+      // Check if the moving player's clock has run out
+      const clockResult = applyClock(row, turn);
+      if (clockResult.timedOut) {
+        db.prepare(`UPDATE games SET status = 'completed', result = ?, end_reason = 'timeout', updated_at = datetime('now') WHERE id = ?`)
+          .run(clockResult.winner, gameId);
+        const timedOutState = rowToState(getFullGameRow(db, gameId));
+        updateElo(db, timedOutState);
+        broadcast(gameId, { type: 'game:ended', state: timedOutState });
+        return;
+      }
+
       let move;
       try { move = chess.move({ from, to, promotion: promotion ?? 'q' }); } catch {}
       if (!move) { send(ws, { type: 'game:error', message: 'Illegal move' }); return; }
@@ -115,8 +132,17 @@ export function registerGameSocket(wss: WebSocketServer) {
         status = 'completed'; result = 'draw'; endReason = '50_move_rule';
       }
 
-      db.prepare(`UPDATE games SET fen = ?, pgn = ?, status = ?, result = ?, end_reason = ?, draw_offered_by = NULL, updated_at = datetime('now') WHERE id = ?`)
-        .run(chess.fen(), chess.pgn(), status, result, endReason, gameId);
+      db.prepare(`
+        UPDATE games SET fen = ?, pgn = ?, status = ?, result = ?, end_reason = ?,
+          draw_offered_by = NULL,
+          white_time_ms = ?, black_time_ms = ?,
+          last_move_at = datetime('now'),
+          updated_at = datetime('now')
+        WHERE id = ?
+      `).run(chess.fen(), chess.pgn(), status, result, endReason,
+        clockResult.newWhiteTimeMs ?? row.white_time_ms,
+        clockResult.newBlackTimeMs ?? row.black_time_ms,
+        gameId);
 
       const updated = rowToState(getFullGameRow(db, gameId));
 

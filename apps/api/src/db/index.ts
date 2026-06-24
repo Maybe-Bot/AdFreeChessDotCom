@@ -62,4 +62,14 @@ function migrate(db: Database.Database) {
     `ALTER TABLE users ADD COLUMN bot_api_key TEXT`,
     `ALTER TABLE users ADD COLUMN bot_owner_id INTEGER REFERENCES users(id)`,
   ]);
+
+  runMigration('002_time_controls', [
+    `ALTER TABLE games ADD COLUMN time_control_type TEXT NOT NULL DEFAULT 'unlimited'`,
+    `ALTER TABLE games ADD COLUMN initial_time_ms INTEGER`,
+    `ALTER TABLE games ADD COLUMN increment_ms INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE games ADD COLUMN days_per_move INTEGER`,
+    `ALTER TABLE games ADD COLUMN white_time_ms INTEGER`,
+    `ALTER TABLE games ADD COLUMN black_time_ms INTEGER`,
+    `ALTER TABLE games ADD COLUMN last_move_at TEXT`,
+  ]);
 }
