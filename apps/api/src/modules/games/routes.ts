@@ -41,6 +41,10 @@ gamesRouter.get('/open', (req: AuthRequest, res) => {
     WHERE g.status = 'waiting'
       AND (g.white_player_id != ? OR g.white_player_id IS NULL)
       AND (g.black_player_id != ? OR g.black_player_id IS NULL)
+      AND (
+        g.time_control_type = 'correspondence'
+        OR g.created_at > datetime('now', '-15 minutes')
+      )
     ORDER BY g.created_at DESC
     LIMIT 30
   `).all(req.userId, req.userId) as any[];
