@@ -58,6 +58,11 @@ gamesRouter.post('/', (req: AuthRequest, res) => {
   const color = (req.body.color === 'black') ? 'black' : 'white';
   const tc: TimeControl = req.body.timeControl ?? { type: 'unlimited' };
 
+  if (req.isGuest && tc.type === 'correspondence') {
+    res.status(403).json({ error: 'An account is required to play correspondence games' });
+    return;
+  }
+
   const initialTimeMs = tc.type === 'clock' ? (tc.initialTimeMs ?? 300000) : null;
   const incrementMs   = tc.type === 'clock' ? (tc.incrementMs ?? 0) : 0;
   const daysPerMove   = tc.type === 'correspondence' ? (tc.daysPerMove ?? 3) : null;
