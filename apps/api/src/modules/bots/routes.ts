@@ -3,6 +3,7 @@ import { randomBytes, createHash } from 'crypto';
 import bcrypt from 'bcrypt';
 import { getDb } from '../../db/index.js';
 import { requireAuth, requireRealUser, signToken, type AuthRequest } from '../../middleware/auth.js';
+import { containsSlur } from '../../utils/username-filter.js';
 import type { CreateBotBody, BotSummary } from '@chess/shared';
 
 export const botsRouter = Router();
@@ -29,6 +30,10 @@ botsRouter.post('/', requireRealUser, async (req: AuthRequest, res) => {
     return;
   }
 
+  if (containsSlur(cleanName)) {
+    res.status(400).json({ error: 'That username is not allowed' });
+    return;
+  }
   const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(cleanName);
   if (existing) {
     res.status(409).json({ error: 'Username already taken' });

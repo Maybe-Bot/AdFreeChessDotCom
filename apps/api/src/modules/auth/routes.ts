@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import rateLimit from 'express-rate-limit';
 import { getDb } from '../../db/index.js';
 import { requireAuth, signToken, type AuthRequest } from '../../middleware/auth.js';
+import { containsSlur } from '../../utils/username-filter.js';
 import type { RegisterBody, LoginBody, User } from '@chess/shared';
 
 export const authRouter = Router();
@@ -49,6 +50,10 @@ authRouter.post('/register', authLimiter, async (req, res) => {
   }
   if (typeof username !== 'string' || !/^[a-zA-Z0-9_-]{2,30}$/.test(username)) {
     res.status(400).json({ error: 'Username must be 2–30 characters and may only contain letters, numbers, underscores, and hyphens' });
+    return;
+  }
+  if (containsSlur(username)) {
+    res.status(400).json({ error: 'That username is not allowed' });
     return;
   }
   if (typeof password !== 'string' || password.length < 8) {
