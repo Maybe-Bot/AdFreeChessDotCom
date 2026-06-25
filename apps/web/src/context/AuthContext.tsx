@@ -17,12 +17,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) { setLoading(false); return; }
-    api.get<User>('/auth/me')
-      .then(setUser)
-      .catch(() => localStorage.removeItem('token'))
-      .finally(() => setLoading(false));
+    async function init() {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          const user = await api.get<User>('/auth/me');
+          setUser(user);
+          setLoading(false);
+          return;
+        } catch {
+          localStorage.removeItem('token');
+        }
+      }
+      try {
+        const res = await api.post<AuthResponse>('/auth/guest', {});
+        localStorage.setItem('token', res.token);
+        setUser(res.user);
+      } catch {
+        // Guest creation failed — app continues with no user
+      }
+      setLoading(false);
+    }
+    init();
   }, []);
 
   async function login(body: LoginBody) {

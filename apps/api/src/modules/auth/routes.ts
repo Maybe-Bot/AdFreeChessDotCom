@@ -15,6 +15,32 @@ const authLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later' },
 });
 
+const guestLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' },
+});
+
+authRouter.post('/guest', guestLimiter, (req, res) => {
+  const db = getDb();
+  let username: string;
+  let attempts = 0;
+  do {
+    username = `Guest_${Math.random().toString(36).slice(2, 8)}`;
+    if (++attempts > 10) {
+      res.status(500).json({ error: 'Could not generate unique guest username' });
+      return;
+    }
+  } while (db.prepare('SELECT id FROM users WHERE username = ?').get(username));
+
+  const result = db.prepare('INSERT INTO users (username, password_hash, is_guest) VALUES (?, ?, 1)').run(username, '');
+  const user = db.prepare('SELECT id, username, email, elo_rating, bio, is_bot, is_guest, created_at FROM users WHERE id = ?').get(result.lastInsertRowid) as any;
+  const token = signToken(user.id, user.username, true);
+  res.status(201).json({ token, user: rowToUser(user) });
+});
+
 authRouter.post('/register', authLimiter, async (req, res) => {
   const { username, password } = req.body as RegisterBody;
   if (!username || !password) {
@@ -35,7 +61,7 @@ authRouter.post('/register', authLimiter, async (req, res) => {
   }
 
   const db = getDb();
-  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+  const existing = db.prepare('SELECT id FROM users WHERE username = ? AND is_guest = 0').get(username);
   if (existing) {
     res.status(409).json({ error: 'Username already taken' });
     return;
@@ -46,8 +72,8 @@ authRouter.post('/register', authLimiter, async (req, res) => {
     .prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)')
     .run(username, passwordHash);
 
-  const user = db.prepare('SELECT id, username, email, elo_rating, bio, is_bot, created_at FROM users WHERE id = ?').get(result.lastInsertRowid) as any;
-  const token = signToken(user.id, user.username);
+  const user = db.prepare('SELECT id, username, email, elo_rating, bio, is_bot, is_guest, created_at FROM users WHERE id = ?').get(result.lastInsertRowid) as any;
+  const token = signToken(user.id, user.username, false);
 
   res.status(201).json({ token, user: rowToUser(user) });
 });
@@ -60,7 +86,7 @@ authRouter.post('/login', authLimiter, async (req, res) => {
   }
 
   const db = getDb();
-  const row = db.prepare('SELECT id, username, email, password_hash, elo_rating, bio, is_bot, created_at FROM users WHERE username = ? AND is_bot = 0').get(username) as any;
+  const row = db.prepare('SELECT id, username, email, password_hash, elo_rating, bio, is_bot, is_guest, created_at FROM users WHERE username = ? AND is_bot = 0 AND is_guest = 0').get(username) as any;
   if (!row) {
     res.status(401).json({ error: 'Invalid credentials' });
     return;
@@ -72,13 +98,13 @@ authRouter.post('/login', authLimiter, async (req, res) => {
     return;
   }
 
-  const token = signToken(row.id, row.username);
+  const token = signToken(row.id, row.username, false);
   res.json({ token, user: rowToUser(row) });
 });
 
 authRouter.get('/me', requireAuth, (req: AuthRequest, res) => {
   const db = getDb();
-  const row = db.prepare('SELECT id, username, email, elo_rating, bio, is_bot, created_at FROM users WHERE id = ?').get(req.userId) as any;
+  const row = db.prepare('SELECT id, username, email, elo_rating, bio, is_bot, is_guest, created_at FROM users WHERE id = ?').get(req.userId) as any;
   if (!row) {
     res.status(404).json({ error: 'User not found' });
     return;
@@ -94,6 +120,7 @@ export function rowToUser(row: any): User {
     eloRating: row.elo_rating,
     bio: row.bio ?? '',
     isBot: !!row.is_bot,
+    isGuest: !!row.is_guest,
     createdAt: row.created_at,
   };
 }

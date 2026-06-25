@@ -2,13 +2,13 @@ import { Router } from 'express';
 import { randomBytes, createHash } from 'crypto';
 import bcrypt from 'bcrypt';
 import { getDb } from '../../db/index.js';
-import { requireAuth, signToken, type AuthRequest } from '../../middleware/auth.js';
+import { requireAuth, requireRealUser, signToken, type AuthRequest } from '../../middleware/auth.js';
 import type { CreateBotBody, BotSummary } from '@chess/shared';
 
 export const botsRouter = Router();
 
 // Create a bot account owned by the calling user
-botsRouter.post('/', requireAuth, async (req: AuthRequest, res) => {
+botsRouter.post('/', requireRealUser, async (req: AuthRequest, res) => {
   const { username } = req.body as CreateBotBody;
   if (!username || typeof username !== 'string' || username.trim().length < 2) {
     res.status(400).json({ error: 'username must be at least 2 characters' });
@@ -73,7 +73,7 @@ botsRouter.post('/auth', (req, res) => {
 });
 
 // List bots owned by the calling user
-botsRouter.get('/', requireAuth, (req: AuthRequest, res) => {
+botsRouter.get('/', requireRealUser, (req: AuthRequest, res) => {
   const db = getDb();
   const bots = db.prepare(
     'SELECT id, username, elo_rating, created_at FROM users WHERE bot_owner_id = ? AND is_bot = 1 ORDER BY created_at DESC'
@@ -90,7 +90,7 @@ botsRouter.get('/', requireAuth, (req: AuthRequest, res) => {
 });
 
 // Delete a bot owned by the calling user
-botsRouter.delete('/:id', requireAuth, (req: AuthRequest, res) => {
+botsRouter.delete('/:id', requireRealUser, (req: AuthRequest, res) => {
   const db = getDb();
   const bot = db.prepare('SELECT id, bot_owner_id FROM users WHERE id = ? AND is_bot = 1').get(req.params.id) as any;
   if (!bot) {

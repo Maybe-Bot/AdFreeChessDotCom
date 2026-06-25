@@ -87,6 +87,10 @@ function migrate(db: Database.Database) {
     db.pragma('foreign_keys = ON');
   }
 
+  runMigration('004_guest_users', [
+    `ALTER TABLE users ADD COLUMN is_guest INTEGER NOT NULL DEFAULT 0`,
+  ]);
+
   runMigration('002_time_controls', [
     `ALTER TABLE games ADD COLUMN time_control_type TEXT NOT NULL DEFAULT 'unlimited'`,
     `ALTER TABLE games ADD COLUMN initial_time_ms INTEGER`,

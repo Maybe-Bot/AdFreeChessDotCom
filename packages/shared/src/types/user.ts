@@ -6,6 +6,7 @@ export interface User {
   createdAt: string;
   bio: string;
   isBot: boolean;
+  isGuest: boolean;
 }
 
 export interface AuthResponse {

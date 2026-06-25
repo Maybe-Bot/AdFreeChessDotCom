@@ -109,7 +109,7 @@ export default function GamePage() {
     ws.onerror = () => setError('Connection error');
 
     return () => ws.close();
-  }, [id]);
+  }, [id, user?.id]);
 
   function handleGameUpdate(state: GameState) {
     setGame(state);

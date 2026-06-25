@@ -87,11 +87,12 @@ export default function LobbyPage() {
   }, []);
 
   useEffect(() => {
+    if (!user) return;
     api.get<GameSummary[]>('/games').then(setMyGames).catch(() => {});
     fetchOpenChallenges();
     const id = setInterval(fetchOpenChallenges, 5_000);
     return () => clearInterval(id);
-  }, [fetchOpenChallenges]);
+  }, [fetchOpenChallenges, user?.id]);
 
   async function createGame(color: 'white' | 'black') {
     setCreating(true);
@@ -124,11 +125,21 @@ export default function LobbyPage() {
       <header className={styles.header}>
         <h1 className={styles.logo}>♟ AdFreeChess</h1>
         <div className={styles.userInfo}>
-          <Link to={`/profile/${user?.username}`} className={styles.profileLink}>
-            {user?.username} · {user?.eloRating} ELO
-          </Link>
-          <Link to="/bots" className={styles.botsLink}>Bots</Link>
-          <button className={styles.logoutBtn} onClick={logout}>Log out</button>
+          {user?.isGuest ? (
+            <>
+              <span className={styles.profileLink}>{user.username} · {user.eloRating} ELO</span>
+              <Link to="/login" className={styles.botsLink}>Log in</Link>
+              <Link to="/register" className={styles.logoutBtn}>Register</Link>
+            </>
+          ) : (
+            <>
+              <Link to={`/profile/${user?.username}`} className={styles.profileLink}>
+                {user?.username} · {user?.eloRating} ELO
+              </Link>
+              <Link to="/bots" className={styles.botsLink}>Bots</Link>
+              <button className={styles.logoutBtn} onClick={logout}>Log out</button>
+            </>
+          )}
         </div>
       </header>
 
