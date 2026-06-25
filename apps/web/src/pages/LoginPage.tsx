@@ -6,7 +6,7 @@ import styles from './AuthPage.module.css';
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,7 +16,7 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await login({ email, password });
+      await login({ username, password });
       navigate('/');
     } catch (err: any) {
       setError(err.message);
@@ -32,8 +32,8 @@ export default function LoginPage() {
         <h2 className={styles.subtitle}>Log in</h2>
         <form onSubmit={handleSubmit} className={styles.form}>
           <label className={styles.label}>
-            Email
-            <input className={styles.input} type="email" value={email} onChange={e => setEmail(e.target.value)} required />
+            Username
+            <input className={styles.input} type="text" value={username} onChange={e => setUsername(e.target.value)} required />
           </label>
           <label className={styles.label}>
             Password

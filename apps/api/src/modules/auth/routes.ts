@@ -16,17 +16,13 @@ const authLimiter = rateLimit({
 });
 
 authRouter.post('/register', authLimiter, async (req, res) => {
-  const { username, email, password } = req.body as RegisterBody;
-  if (!username || !email || !password) {
-    res.status(400).json({ error: 'username, email, and password are required' });
+  const { username, password } = req.body as RegisterBody;
+  if (!username || !password) {
+    res.status(400).json({ error: 'username and password are required' });
     return;
   }
   if (typeof username !== 'string' || !/^[a-zA-Z0-9_-]{2,30}$/.test(username)) {
     res.status(400).json({ error: 'Username must be 2–30 characters and may only contain letters, numbers, underscores, and hyphens' });
-    return;
-  }
-  if (typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
-    res.status(400).json({ error: 'A valid email address is required' });
     return;
   }
   if (typeof password !== 'string' || password.length < 8) {
@@ -39,16 +35,16 @@ authRouter.post('/register', authLimiter, async (req, res) => {
   }
 
   const db = getDb();
-  const existing = db.prepare('SELECT id FROM users WHERE email = ? OR username = ?').get(email, username);
+  const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
   if (existing) {
-    res.status(409).json({ error: 'Email or username already taken' });
+    res.status(409).json({ error: 'Username already taken' });
     return;
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
   const result = db
-    .prepare('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)')
-    .run(username, email, passwordHash);
+    .prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)')
+    .run(username, passwordHash);
 
   const user = db.prepare('SELECT id, username, email, elo_rating, bio, is_bot, created_at FROM users WHERE id = ?').get(result.lastInsertRowid) as any;
   const token = signToken(user.id, user.username);
@@ -57,14 +53,14 @@ authRouter.post('/register', authLimiter, async (req, res) => {
 });
 
 authRouter.post('/login', authLimiter, async (req, res) => {
-  const { email, password } = req.body as LoginBody;
-  if (!email || !password) {
-    res.status(400).json({ error: 'email and password are required' });
+  const { username, password } = req.body as LoginBody;
+  if (!username || !password) {
+    res.status(400).json({ error: 'username and password are required' });
     return;
   }
 
   const db = getDb();
-  const row = db.prepare('SELECT id, username, email, password_hash, elo_rating, bio, is_bot, created_at FROM users WHERE email = ? AND is_bot = 0').get(email) as any;
+  const row = db.prepare('SELECT id, username, email, password_hash, elo_rating, bio, is_bot, created_at FROM users WHERE username = ? AND is_bot = 0').get(username) as any;
   if (!row) {
     res.status(401).json({ error: 'Invalid credentials' });
     return;

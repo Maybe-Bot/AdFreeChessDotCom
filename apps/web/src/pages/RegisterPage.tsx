@@ -7,17 +7,21 @@ export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
     setError('');
     setLoading(true);
     try {
-      await register({ username, email, password });
+      await register({ username, password });
       navigate('/');
     } catch (err: any) {
       setError(err.message);
@@ -37,12 +41,12 @@ export default function RegisterPage() {
             <input className={styles.input} type="text" value={username} onChange={e => setUsername(e.target.value)} required />
           </label>
           <label className={styles.label}>
-            Email
-            <input className={styles.input} type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-          </label>
-          <label className={styles.label}>
             Password
             <input className={styles.input} type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
+          </label>
+          <label className={styles.label}>
+            Confirm password
+            <input className={styles.input} type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required minLength={8} />
           </label>
           {error && <p className={styles.error}>{error}</p>}
           <button className={styles.button} type="submit" disabled={loading}>

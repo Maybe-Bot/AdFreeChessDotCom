@@ -18,7 +18,7 @@ function migrate(db: Database.Database) {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE,
-      email TEXT NOT NULL UNIQUE,
+      email TEXT UNIQUE,
       password_hash TEXT NOT NULL,
       elo_rating INTEGER NOT NULL DEFAULT 1200,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -62,6 +62,30 @@ function migrate(db: Database.Database) {
     `ALTER TABLE users ADD COLUMN bot_api_key TEXT`,
     `ALTER TABLE users ADD COLUMN bot_owner_id INTEGER REFERENCES users(id)`,
   ]);
+
+  // FK pragma cannot be set inside a transaction, so handle this migration manually
+  if (!applied.has('003_email_optional')) {
+    db.pragma('foreign_keys = OFF');
+    db.transaction(() => {
+      db.exec(`CREATE TABLE users_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        email TEXT UNIQUE,
+        password_hash TEXT NOT NULL,
+        elo_rating INTEGER NOT NULL DEFAULT 1200,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        bio TEXT NOT NULL DEFAULT '',
+        is_bot INTEGER NOT NULL DEFAULT 0,
+        bot_api_key TEXT,
+        bot_owner_id INTEGER REFERENCES users_new(id)
+      )`);
+      db.exec(`INSERT INTO users_new SELECT id, username, email, password_hash, elo_rating, created_at, bio, is_bot, bot_api_key, bot_owner_id FROM users`);
+      db.exec(`DROP TABLE users`);
+      db.exec(`ALTER TABLE users_new RENAME TO users`);
+      db.prepare('INSERT INTO _migrations (name) VALUES (?)').run('003_email_optional');
+    })();
+    db.pragma('foreign_keys = ON');
+  }
 
   runMigration('002_time_controls', [
     `ALTER TABLE games ADD COLUMN time_control_type TEXT NOT NULL DEFAULT 'unlimited'`,
