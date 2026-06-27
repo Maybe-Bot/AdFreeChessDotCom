@@ -82,17 +82,22 @@ export default function LobbyPage() {
   const [joinId, setJoinId] = useState('');
   const [error, setError] = useState('');
 
+  const fetchMyGames = useCallback(() => {
+    api.get<GameSummary[]>('/games').then(setMyGames).catch(() => {});
+  }, []);
+
   const fetchOpenChallenges = useCallback(() => {
     api.get<GameSummary[]>('/games/open').then(setOpenChallenges).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (!user) return;
-    api.get<GameSummary[]>('/games').then(setMyGames).catch(() => {});
+    fetchMyGames();
     fetchOpenChallenges();
-    const id = setInterval(fetchOpenChallenges, 5_000);
-    return () => clearInterval(id);
-  }, [fetchOpenChallenges, user?.id]);
+    const pollOpen = setInterval(fetchOpenChallenges, 5_000);
+    const pollMine = setInterval(fetchMyGames, 10_000);
+    return () => { clearInterval(pollOpen); clearInterval(pollMine); };
+  }, [fetchMyGames, fetchOpenChallenges, user?.id]);
 
   async function createGame(color: 'white' | 'black') {
     setCreating(true);

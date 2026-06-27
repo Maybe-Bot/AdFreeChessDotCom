@@ -100,4 +100,12 @@ function migrate(db: Database.Database) {
     `ALTER TABLE games ADD COLUMN black_time_ms INTEGER`,
     `ALTER TABLE games ADD COLUMN last_move_at TEXT`,
   ]);
+
+  runMigration('005_indexes', [
+    `CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
+    `CREATE INDEX IF NOT EXISTS idx_games_white_player ON games(white_player_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_games_black_player ON games(black_player_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_games_status_created ON games(status, created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_users_bot_owner ON users(bot_owner_id) WHERE is_bot = 1`,
+  ]);
 }

@@ -43,7 +43,7 @@ botsRouter.post('/', requireRealUser, async (req: AuthRequest, res) => {
   const apiKey = randomBytes(32).toString('hex');
   const apiKeyHash = createHash('sha256').update(apiKey).digest('hex');
   const fakeEmail = `bot_${randomBytes(8).toString('hex')}@bots.internal`;
-  const fakeHash = await bcrypt.hash(randomBytes(16).toString('hex'), 4);
+  const fakeHash = await bcrypt.hash(randomBytes(16).toString('hex'), 12);
 
   const result = db.prepare(
     'INSERT INTO users (username, email, password_hash, is_bot, bot_api_key, bot_owner_id) VALUES (?, ?, ?, 1, ?, ?)'
@@ -107,10 +107,20 @@ botsRouter.delete('/:id', requireRealUser, (req: AuthRequest, res) => {
     return;
   }
 
-  // Nullify games rather than cascade-delete to preserve history
-  db.prepare('UPDATE games SET white_player_id = NULL WHERE white_player_id = ?').run(bot.id);
-  db.prepare('UPDATE games SET black_player_id = NULL WHERE black_player_id = ?').run(bot.id);
-  db.prepare('DELETE FROM users WHERE id = ?').run(bot.id);
+  db.transaction(() => {
+    // End any active game the bot is playing — leave completed/waiting as-is, just nullify the slot
+    db.prepare(`
+      UPDATE games SET status = 'completed', result = CASE
+        WHEN white_player_id = ? THEN 'black'
+        ELSE 'white'
+      END, end_reason = 'resignation', updated_at = datetime('now')
+      WHERE (white_player_id = ? OR black_player_id = ?) AND status = 'active'
+    `).run(bot.id, bot.id, bot.id);
+    // Nullify remaining references to preserve game history
+    db.prepare('UPDATE games SET white_player_id = NULL WHERE white_player_id = ?').run(bot.id);
+    db.prepare('UPDATE games SET black_player_id = NULL WHERE black_player_id = ?').run(bot.id);
+    db.prepare('DELETE FROM users WHERE id = ?').run(bot.id);
+  })();
 
   res.json({ ok: true });
 });

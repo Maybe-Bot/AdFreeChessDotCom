@@ -63,6 +63,26 @@ gamesRouter.post('/', (req: AuthRequest, res) => {
     return;
   }
 
+  if (tc.type === 'clock') {
+    const ms = tc.initialTimeMs ?? 300000;
+    const inc = tc.incrementMs ?? 0;
+    if (!Number.isInteger(ms) || ms < 10_000 || ms > 3_600_000) {
+      res.status(400).json({ error: 'initialTimeMs must be between 10 seconds and 60 minutes' });
+      return;
+    }
+    if (!Number.isInteger(inc) || inc < 0 || inc > 60_000) {
+      res.status(400).json({ error: 'incrementMs must be between 0 and 60 seconds' });
+      return;
+    }
+  }
+  if (tc.type === 'correspondence') {
+    const days = tc.daysPerMove ?? 3;
+    if (!Number.isInteger(days) || days < 1 || days > 30) {
+      res.status(400).json({ error: 'daysPerMove must be between 1 and 30' });
+      return;
+    }
+  }
+
   const initialTimeMs = tc.type === 'clock' ? (tc.initialTimeMs ?? 300000) : null;
   const incrementMs   = tc.type === 'clock' ? (tc.incrementMs ?? 0) : 0;
   const daysPerMove   = tc.type === 'correspondence' ? (tc.daysPerMove ?? 3) : null;

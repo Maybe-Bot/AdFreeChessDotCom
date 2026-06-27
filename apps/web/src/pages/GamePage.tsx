@@ -45,6 +45,8 @@ export default function GamePage() {
   const [drawOfferFrom, setDrawOfferFrom] = useState<Color | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [wsRetry, setWsRetry] = useState(0);
+  const closingRef = useRef(false);
 
   // Live clock state (ms remaining displayed for each side)
   const [clockWhite, setClockWhite] = useState<number | null>(null);
@@ -70,16 +72,29 @@ export default function GamePage() {
   // Keep refs in sync
   useEffect(() => { gameRef.current = game; }, [game]);
 
-  // WebSocket
+  // Warn before leaving an active game
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (gameRef.current?.status === 'active' && myColor) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [myColor]);
+
+  // WebSocket with auto-reconnect
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token || !id) return;
 
+    closingRef.current = false;
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(`${proto}//${location.host}/ws`);
     wsRef.current = ws;
 
     ws.onopen = () => {
+      setError('');
       ws.send(JSON.stringify({ type: 'game:auth', token }));
       ws.send(JSON.stringify({ type: 'game:join', gameId: id }));
     };
@@ -106,10 +121,21 @@ export default function GamePage() {
       }
     };
 
-    ws.onerror = () => setError('Connection error');
+    ws.onerror = () => {
+      if (!closingRef.current) setError('Connection lost — reconnecting…');
+    };
 
-    return () => ws.close();
-  }, [id, user?.id]);
+    ws.onclose = () => {
+      if (closingRef.current) return;
+      const delay = Math.min(1000 * 2 ** wsRetry, 30_000);
+      setTimeout(() => setWsRetry(r => r + 1), delay);
+    };
+
+    return () => {
+      closingRef.current = true;
+      ws.close();
+    };
+  }, [id, user?.id, wsRetry]);
 
   function handleGameUpdate(state: GameState) {
     setGame(state);
